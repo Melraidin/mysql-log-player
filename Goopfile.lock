@@ -1,1 +1,4 @@
+github.com/500px/go-utils #6c8f260d25f9326c7f7442be769630a0e4ee0144
 github.com/go-sql-driver/mysql #71f003c6e927d2550713e7637affb769977ece78
+github.com/ziutek/mymysql/godrv #e5d54ebfda3f8a15e7b192b65c2aa10cb4fd7e04
+github.com/siddontang/go-mysql #1a1e7fd11cb6e2d7034f903a2a8b62c8aa47a170

@@ -6,6 +6,8 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"time"
+	"fmt"
 )
 
 var (
@@ -15,9 +17,14 @@ var (
 type Reader struct {
 	source io.ReadCloser
 	reader *bufio.Reader
+	next   string
 	eof    bool
 	buffer bytes.Buffer
 }
+
+var (
+	zeroTime = time.Time{}
+)
 
 func NewReader(source io.ReadCloser) (*Reader, error) {
 	return &Reader{
@@ -32,34 +39,51 @@ func (r *Reader) Read() (*Query, error) {
 		return nil, io.EOF
 	}
 
-	r.buffer.Reset()
 	query := &Query{}
-
-	readPrelude := false
 	for {
-		line, err := r.reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				r.eof = true
-				return query, nil
+		var err error
+		var line string
+		if r.next != "" {
+			line = r.next
+			r.next = ""
+		} else {
+			line, err = r.reader.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					r.eof = true
+					query.SQL = r.getBuffer()
+					return query, nil
+				}
+				return nil, err
 			}
-			return nil, err
 		}
 
-		if strings.HasPrefix(line, "#") {
-			if readPrelude {
-				query.SQL = strings.TrimRight(r.buffer.String(), "\n")
+		if strings.HasPrefix(line, "# Time: ") {
+			if query.Time == zeroTime {
+				query.Time, err = time.ParseInLocation("010206 15:04:05", strings.TrimSpace(line[8:]), time.UTC)
+				if err != nil {
+					fmt.Printf("Error parsing time '%s': %v\n", line[8:], err)
+				}
+			} else {
+				r.next = line
+				query.SQL = r.getBuffer()
 				return query, nil
 			}
-
+		} else if strings.HasPrefix(line, "# User@Host: ") {
 			if matches := clientRegex.FindStringSubmatch(line); len(matches) == 2 {
 				query.Client = matches[1]
 			}
+		} else if strings.HasPrefix(line, "# Query_time: ") {
 		} else {
-			readPrelude = true
 			r.buffer.WriteString(line)
 		}
 	}
+}
+
+func (r *Reader) getBuffer() string {
+	s := strings.TrimRight(r.buffer.String(), "\n")
+	r.buffer.Reset()
+	return s
 }
 
 func (r *Reader) Close() {
